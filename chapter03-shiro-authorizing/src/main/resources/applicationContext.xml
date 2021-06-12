@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns = "http://www.springframework.org/schema/beans"
+       xmlns:xsi = "http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation = "http://www.springframework.org/schema/beans
+	   http://www.springframework.org/schema/beans/spring-beans.xsd">
+    <!--========================== Shiro 配置 ==========================-->
+    <!--################### 1. 配置 SecurityManager ###################-->
+    <bean id = "securityManager"
+          class = "org.apache.shiro.web.mgt.DefaultWebSecurityManager">
+        <!-- 配置缓存管理器 -->
+        <property name = "cacheManager"
+                  ref = "cacheManager"/>
+
+        <!-- 配置 Session 管理器 -->
+        <!--<property name = "sessionManager"
+                  ref = "sessionManager"/>-->
+
+        <!-- 配置单个 Realm -->
+        <!--<property name = "realm"
+                  ref = "jdbcRealm"/>-->
+
+        <!-- 配置多个 Realm 建议配置在授权管理器中-->
+        <!--<property name = "realms">
+            <list>
+                <ref bean = "jdbcRealm"/>
+                <ref bean = "secondRealm"/>
+            </list>
+        </property>-->
+
+        <!-- 配置认证器 -->
+        <property name = "authenticator"
+                  ref = "authenticator"/>
+
+        <!-- 配置授权器 -->
+        <property name = "authorizer"
+                  ref = "authorizer"/>
+    </bean>
+    <!--################### 2. 缓存管理器 ###################-->
+    <!-- 使用第三方缓存管理器，需要加入依赖和配置文件 -->
+    <bean id = "cacheManager"
+          class = "org.apache.shiro.cache.ehcache.EhCacheManager">
+        <property name = "cacheManagerConfigFile"
+                  value = "classpath:ehcache.xml"/>
+    </bean>
+
+    <!-- Session 管理器 -->
+    <!--<bean id = "sessionManager"-->
+    <!--      class = "org.apache.shiro.session.mgt.DefaultSessionManager">-->
+    <!--</bean>-->
+
+    <!--################### 3. 配置 Realm ###################-->
+    <!-- 自定义一个类直接实现 Realm 接口 -->
+    <bean id = "jdbcRealm"
+          class = "com.lft.shiro.realms.MyFirstShrioAuthorizingRealm">
+        <!-- 指定凭证匹配器 -->
+        <property name = "credentialsMatcher"
+                  ref = "credentialsMatcher"/>
+    </bean>
+    <bean id = "secondRealm"
+          class = "com.lft.shiro.realms.MySecondShiroAuthenticatingRealm">
+        <!-- 指定凭证匹配器 -->
+        <property name = "credentialsMatcher"
+                  ref = "credentialsMatcher2"/>
+    </bean>
+
+    <!-- 认证管理器 -->
+    <bean id = "authenticator"
+          class = "org.apache.shiro.authc.pam.ModularRealmAuthenticator">
+        <!-- 配置多 Realm -->
+        <property name = "realms">
+            <list>
+                <ref bean = "jdbcRealm"/>
+                <ref bean = "secondRealm"/>
+            </list>
+        </property>
+        <!-- 配置认证策略 -->
+        <!-- 如果不配置，默认是 AtLeastOneSuccessfulStrategy 认证策略 -->
+        <property name = "authenticationStrategy"
+                  ref = "atLeastOneSuccessfulStrategy"/>
+    </bean>
+
+    <!-- 授权器 -->
+    <bean id = "authorizer"
+          class = "org.apache.shiro.authz.ModularRealmAuthorizer">
+        <property name = "realms">
+            <list>
+                <ref bean = "jdbcRealm"/>
+            </list>
+        </property>
+    </bean>
+
+    <!-- 凭证匹配器1 -->
+    <bean id = "credentialsMatcher"
+          class = "org.apache.shiro.authc.credential.HashedCredentialsMatcher">
+        <!-- 算法名称 -->
+        <property name = "hashAlgorithmName"
+                  value = "MD5"/>
+        <!-- 执行加密次数 -->
+        <property name = "hashIterations"
+                  value = "2"/>
+    </bean>
+    <!-- 凭证匹配器2 -->
+    <bean id = "credentialsMatcher2"
+          class = "org.apache.shiro.authc.credential.HashedCredentialsMatcher">
+        <!-- 算法名称 -->
+        <property name = "hashAlgorithmName"
+                  value = "SHA1"/>
+        <!-- 执行加密次数 -->
+        <property name = "hashIterations"
+                  value = "2"/>
+    </bean>
+
+    <!-- 认证策略 -->
+    <!-- 至少一个成功策略 -->
+    <bean id = "atLeastOneSuccessfulStrategy"
+          class = "org.apache.shiro.authc.pam.AtLeastOneSuccessfulStrategy"/>
+    <!-- 所有成功策略 -->
+    <bean id = "allSuccessfulStrategy"
+          class = "org.apache.shiro.authc.pam.AllSuccessfulStrategy"/>
+    <!-- 首次成功策略 -->
+    <bean id = "firstSuccessfulStrategy"
+          class = "org.apache.shiro.authc.pam.FirstSuccessfulStrategy"/>
+
+    <!--################### 4. 配置 LifecycleBeanPostProcessor 生命周期后置处理器 ###################-->
+    <!-- 可以自动管理配置在 Spring IOC 容器中 shiro Bean 的生命周期。 -->
+    <bean id = "lifecycleBeanPostProcessor"
+          class = "org.apache.shiro.spring.LifecycleBeanPostProcessor"/>
+
+    <!--################### 5. 在配置了 LifecycleBeanPostProcessor 之后，才能在 IOC 容器中使用 shiro 注解。 ###################-->
+    <bean class = "org.springframework.aop.framework.autoproxy.DefaultAdvisorAutoProxyCreator"
+          depends-on = "lifecycleBeanPostProcessor"/>
+    <bean class = "org.apache.shiro.spring.security.interceptor.AuthorizationAttributeSourceAdvisor">
+        <property name = "securityManager"
+                  ref = "securityManager"/>
+    </bean>
+
+    <!--################### 6. 配置 ShiroFilter ###################-->
+    <!-- id名必须和 web.xml 中配置的过滤器名字 <filter-name> 一样。 -->
+    <!-- 若不一致，则会抛出 NoSuchBeanDefinitionException 异常 因为，Shiro 会从 IOC 容器中查找 <filter-name> 名字对应的 filter -->
+    <bean id = "shiroFilter"
+          class = "org.apache.shiro.spring.web.ShiroFilterFactoryBean">
+        <property name = "securityManager"
+                  ref = "securityManager"/>
+        <property name = "loginUrl"
+                  value = "/login.jsp"/>
+        <property name = "successUrl"
+                  value = "/list.jsp"/>
+        <property name = "unauthorizedUrl"
+                  value = "/unauthorized.jsp"/>
+        <!-- 配置哪些页面需要受保护 -->
+        <!-- 1. anon 表示可以被匿名访问 2. authc 必须认证（登录）才能访问 -->
+        <property name = "filterChainDefinitions">
+            <value>
+                <!--
+                [urls] 格式为 url = 拦截器[参数],拦截器[参数]
+                    1. anon (anonymous) 拦截器表示匿名访问
+                    2. authc (authentication) 拦截器表示需要身份认证通过后才能访问
+                    3. logout 退出拦截器
+                    4. roles 角色过滤器
+
+                支持 ant 风格模式：
+                    ?：匹配一个字符，例如：/admin? 将匹配 /admin1，但不匹配 /admin 或 /admin/
+                    *：匹配0个或多个字符，例如：/admin* 将匹配 /admin、/admin123 但不匹配 /admin/1
+                    **：匹配路径中的0个或多个路径，例如：/admin/** 将匹配 /admin/、/admin/a、/admin/a/b
+
+                匹配顺序：
+                    URL 权限采取第一次匹配优先的方式。
+                    从头开始使用第一个匹配的 url 模式对应的拦截器链。
+                    例如：
+                        /bb/** = filter1
+                        /bb/aa = filter2
+                        /**=filter3
+                        如果请求的url 是 /bb/aa，因为按照声明顺序进行匹配，那么将使用 filter1 进行拦截
+                -->
+                /login.jsp = anon
+                /shiro/login = anon
+                /shiro/logout = logout
+
+                /user.jsp = roles[user]
+                /admin.jsp = roles[admin]
+
+                /** = authc
+            </value>
+        </property>
+    </bean>
+</beans>
